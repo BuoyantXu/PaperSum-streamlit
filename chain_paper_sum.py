@@ -35,7 +35,7 @@ def summarize_papers(uploaded_files_path, llm=None, language='en', auto_language
 
 def chain_paper_sum_stuff(document, llm=None, language='en', auto_language=False, verbose=False, print_response=True):
     if auto_language:
-        language = check_language_cn(document[0].pagecontent)
+        language = check_language_cn(document[0].page_content)
 
     # Define prompt
     prompt = prompt_paper_sum.get(language)
