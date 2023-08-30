@@ -13,13 +13,6 @@ from load_documents import delete_files
 
 st.set_page_config(layout="wide")
 
-# set default
-openai_api_key = None
-language = "en"
-auto_language = False
-model_chat = "gpt-3.5-turbo"
-model_sum = "gpt-3.5-turbo-16k"
-
 # Get py file directory
 dir_path = os.path.dirname(os.path.abspath(__file__))
 uploaded_path = os.path.join(dir_path, "uploaded_files")
@@ -47,7 +40,6 @@ def format_output_text(output_text: str):
 
 
 def save_uploaded_file(uploaded_file):
-    # 创建一个目录用于保存上传的文件
     os.makedirs("uploaded_files", exist_ok=True)
     if isinstance(uploaded_file, list):
         for file in uploaded_file:
@@ -65,37 +57,25 @@ def save_file(file):
 with st.sidebar:
     selected = st_om.option_menu(
         "Main Menu",
-        ["Chatbot", "PaperSum", "Settings"]
+        ["Chatbot", "PaperSum"]
     )
 
-if selected == "Settings":
-    st.title("⚙️ Settings")
     with st.form("Settings"):
-        openai_api_key = st.text_input("OpenAI API Key", key="openai_api_key", type="password")
-        openai_api_base = st.text_input("OpenAI API Base URL (optional)", key="openai_api_base")
-        "[Get an OpenAI API key](https://platform.openai.com/account/api-keys)"
+        openai_api_key = st.text_input("OpenAI API Key", type="password")
+        openai_api_base = st.text_input("OpenAI API Base URL")
+        model_chat = st.selectbox("Chatbot model", ["gpt-3.5-turbo", "gpt-3.5-turbo-16k", "gpt-4", "gpt-4-32k"])
+        model_sum = st.selectbox("Summarize model", ["gpt-3.5-turbo-16k", "gpt-3.5-turbo", "gpt-4", "gpt-4-32k"])
 
-        c1, c2 = st.columns(2)
-        with c1:
-            model_chat = st.selectbox("Select the chat model",
-                                      ["gpt-3.5-turbo", "gpt-3.5-turbo-16k", "gpt-4", "gpt-4-32k"])
-        with c2:
-            model_sum = st.selectbox("Select the paper summarize model",
-                                     ["gpt-3.5-turbo-16k", "gpt-3.5-turbo", "gpt-4", "gpt-4-32k"])
-        language = st.selectbox("Select the language", ["Chinese", "English", "Auto Detect"])
+        button_set = st.form_submit_button("Set")
 
-        button_sum = st.form_submit_button("Set")
+    if button_set:
+        os.environ['OPENAI_API_KEY'] = openai_api_key
+        os.environ['OPENAI_API_BASE'] = openai_api_base
+        os.environ['MODEL_NAME_REFINED'] = model_chat
+        os.environ['MODEL_NAME_STUFF'] = model_sum
 
-    if button_sum:
-        os.environ["OPENAI_API_KEY"] = openai_api_key
-        os.environ["OPENAI_API_BASE"] = openai_api_base
-
-        os.environ["MODEL_NAME_REFINED"] = model_chat
-        os.environ["MODEL_NAME_STUFF"] = model_sum
-
-        language = "en" if language == "English" else language
-        language = "cn" if language == "Chinese" else language
-        auto_language = True if language == "Auto Detect" else False
+        print(os.getenv("OPENAI_API_KEY"), os.getenv("OPENAI_API_BASE"))
+        st.success("OpenAI API Key and OpenAI API Base URL has been set.")
 
 if selected == "Chatbot":
     st.title("💬 Chatbot")
@@ -106,14 +86,15 @@ if selected == "Chatbot":
         st.chat_message(msg["role"]).write(msg["content"])
 
     if prompt := st.chat_input():
-        if not openai_api_key:
+        if not os.getenv("OPENAI_API_KEY"):
             st.info("Please add your OpenAI API key in settings to continue.")
             st.stop()
-
+        openai.api_key = os.getenv("OPENAI_API_KEY")
+        openai.api_base = os.getenv("OPENAI_API_BASE")
         st.session_state.messages.append({"role": "user", "content": prompt})
         st.chat_message("user").write(prompt)
         response = openai.ChatCompletion.create(
-            model=os.environ["MODEL_NAME_REFINED"],
+            model="gpt-3.5-turbo",
             messages=st.session_state.messages)
         msg = response.choices[0].message
         st.session_state.messages.append(msg)
@@ -123,13 +104,18 @@ if selected == "PaperSum":
     st.title("📝 Paper Summarization")
     with st.form("PaperSum"):
         paper_files = st.file_uploader("Upload your papers", accept_multiple_files=True, type=["pdf", "txt"])
+        language = st.selectbox("Language", ["English", "Chinese", "Auto Detect"])
+        language = "en" if language == "English" else language
+        language = "cn" if language == "Chinese" else language
+        auto_language = True if language == "Auto Detect" else False
+
         button_sum = st.form_submit_button("Summarize papers")
 
     if paper_files is not None and button_sum:
         for file in paper_files:
             save_uploaded_file(file)
 
-        llm_sum = ChatOpenAI(model_name=os.environ["MODEL_NAME_STUFF"])
+        llm_sum = ChatOpenAI(model_name=os.getenv("MODEL_NAME_STUFF"))
 
         # Summarize papers
         df = summarize_papers(uploaded_path, llm=llm_sum, language=language, auto_language=auto_language)
