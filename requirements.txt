@@ -1,0 +1,7 @@
+pandas
+streamlit
+streamlit-option-menu
+pymupdf
+langchain
+openai
+xlsxwriter
